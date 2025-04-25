@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import api from '../api';
+import Button from '../components/ui/Button';
+import Select from '../components/ui/Select';
+import Input from '../components/ui/Input';
+import PageHeader from '../components/ui/PageHeader';
+import Card from '../components/ui/Card';
+import { Table, TableHead, TableHeader, TableBody, TableRow, TableCell, EmptyState } from '../components/ui/Table';
 
 export default function Zamanlama() {
   const [entries, setEntries] = useState([]);
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     class_id: '',
     teacher_id: '',
@@ -15,94 +23,151 @@ export default function Zamanlama() {
   });
 
   useEffect(() => {
-    Promise.all([
-      api.get('/timetables'),
-      api.get('/siniflar'),
-      api.get('/ogretmenler'),
-      api.get('/dersler')
-    ]).then(([t, c, te, s]) => {
-      setEntries(t.data);
-      setClasses(c.data);
-      setTeachers(te.data);
-      setSubjects(s.data);
-    });
+    const fetchData = async () => {
+      try {
+        const [timetables, siniflar, ogretmenler, dersler] = await Promise.all([
+          api.get('/atamalar/timetables'),
+          api.get('/siniflar'),
+          api.get('/ogretmenler'),
+          api.get('/dersler')
+        ]);
+        
+        setEntries(timetables.data);
+        setClasses(siniflar.data);
+        setTeachers(ogretmenler.data);
+        setSubjects(dersler.data);
+      } catch (error) {
+        console.error("Veri yüklenirken hata:", error);
+        toast.error("Veri yüklenirken bir hata oluştu.");
+      }
+    };
+    
+    fetchData();
   }, []);
 
   const ekle = async () => {
+    // Form validasyonu
+    if (!form.class_id || !form.teacher_id || !form.subject_id || !form.day_of_week || !form.slot) {
+      toast.error("Lütfen tüm alanları doldurun.");
+      return;
+    }
+
+    setLoading(true);
     try {
       await api.post('/atamalar/timetable', form);
-      const { data } = await api.get('/timetables');
+      const { data } = await api.get('/atamalar/timetables');
       setEntries(data);
       setForm({ class_id: '', teacher_id: '', subject_id: '', day_of_week: '', slot: '' });
+      toast.success("Zamanlama başarıyla eklendi.");
     } catch (error) {
       console.error("Zamanlama eklenirken hata:", error);
-      alert("Zamanlama eklenirken bir hata oluştu.");
+      if (error.response?.status === 409) {
+        toast.error("Bu zaman diliminde çakışma var!");
+      } else {
+        toast.error("Zamanlama eklenirken bir hata oluştu.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
+  const dayOptions = [
+    { id: "Pazartesi", name: "Pazartesi" },
+    { id: "Salı", name: "Salı" },
+    { id: "Çarşamba", name: "Çarşamba" },
+    { id: "Perşembe", name: "Perşembe" },
+    { id: "Cuma", name: "Cuma" }
+  ];
+
   return (
     <div>
-      <h2>Ders Zamanlaması</h2>
+      <PageHeader 
+        title="Ders Zamanlaması" 
+        subtitle="Sınıf, öğretmen ve ders için haftalık zaman çizelgesi oluşturun."
+      />
 
-      <div className="row mb-3">
-        <div className="col"><label>Sınıf</label>
-          <select className="form-select" value={form.class_id}
-            onChange={e => setForm({ ...form, class_id: e.target.value })}>
-            <option value="">Seçiniz</option>
-            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+      <Card className="mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          <Select
+            label="Sınıf"
+            id="class_id"
+            options={classes}
+            value={form.class_id}
+            onChange={e => setForm({ ...form, class_id: e.target.value })}
+          />
+          
+          <Select
+            label="Ders"
+            id="subject_id"
+            options={subjects}
+            value={form.subject_id}
+            onChange={e => setForm({ ...form, subject_id: e.target.value })}
+          />
+          
+          <Select
+            label="Öğretmen"
+            id="teacher_id"
+            options={teachers}
+            value={form.teacher_id}
+            onChange={e => setForm({ ...form, teacher_id: e.target.value })}
+          />
+          
+          <Select
+            label="Gün"
+            id="day_of_week"
+            options={dayOptions}
+            value={form.day_of_week}
+            onChange={e => setForm({ ...form, day_of_week: e.target.value })}
+          />
+          
+          <div className="flex flex-col justify-between">
+            <Input
+              label="Saat Dilimi"
+              id="slot"
+              placeholder="Örn: 09:00-10:30"
+              value={form.slot}
+              onChange={e => setForm({ ...form, slot: e.target.value })}
+            />
+            
+            <div className="mt-4">
+              <Button
+                onClick={ekle}
+                isLoading={loading}
+                className="w-full" 
+              >
+                Ekle
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="col"><label>Ders</label>
-          <select className="form-select" value={form.subject_id}
-            onChange={e => setForm({ ...form, subject_id: e.target.value })}>
-            <option value="">Seçiniz</option>
-            {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>
-        <div className="col"><label>Öğretmen</label>
-          <select className="form-select" value={form.teacher_id}
-            onChange={e => setForm({ ...form, teacher_id: e.target.value })}>
-            <option value="">Seçiniz</option>
-            {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
-        <div className="col"><label>Gün</label>
-          <select className="form-select" value={form.day_of_week}
-            onChange={e => setForm({ ...form, day_of_week: e.target.value })}>
-            <option value="">Seçiniz</option>
-            {["Pazartesi","Salı","Çarşamba","Perşembe","Cuma"].map(day => (
-              <option key={day} value={day}>{day}</option>
-            ))}
-          </select>
-        </div>
-        <div className="col"><label>Slot</label>
-          <input className="form-control" type="text" value={form.slot}
-            onChange={e => setForm({ ...form, slot: e.target.value })} />
-        </div>
-        <div className="col d-flex align-items-end">
-          <button className="btn btn-primary" onClick={ekle}>Ekle</button>
-        </div>
-      </div>
+      </Card>
 
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Sınıf</th><th>Ders</th><th>Öğretmen</th><th>Gün</th><th>Slot</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.length > 0 ? entries.map(e => (
-            <tr key={e.id}>
-              <td>{e.class}</td>
-              <td>{e.subject}</td>
-              <td>{e.teacher}</td>
-              <td>{e.day_of_week}</td>
-              <td>{e.slot}</td>
-            </tr>
-          )) : (
-            <tr><td colSpan="5">Veri bulunamadı</td></tr>
-          )}
-        </tbody>
-      </table>
+      <Card>
+        <Table>
+          <TableHead>
+            <TableHeader>Sınıf</TableHeader>
+            <TableHeader>Ders</TableHeader>
+            <TableHeader>Öğretmen</TableHeader>
+            <TableHeader>Gün</TableHeader>
+            <TableHeader>Saat Dilimi</TableHeader>
+          </TableHead>
+          <TableBody>
+            {entries.length > 0 ? (
+              entries.map(e => (
+                <TableRow key={e.id}>
+                  <TableCell className="font-medium">{e.class}</TableCell>
+                  <TableCell>{e.subject}</TableCell>
+                  <TableCell>{e.teacher}</TableCell>
+                  <TableCell>{e.day_of_week}</TableCell>
+                  <TableCell>{e.slot}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <EmptyState colSpan={5} message="Henüz zamanlama kaydı bulunmuyor." />
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
-)}
+  );
+}
