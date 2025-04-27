@@ -5,8 +5,9 @@ import { Bars3Icon, XMarkIcon, CalendarIcon, UserGroupIcon, AcademicCapIcon, Boo
 
 const navigation = [
   { name: 'Sınıflar', to: '/siniflar', icon: UserGroupIcon },
-  { name: 'Öğretmenler', to: '/ogretmenler', icon: AcademicCapIcon },
   { name: 'Dersler', to: '/dersler', icon: BookOpenIcon },
+  { name: 'Öğretmenler', to: '/ogretmenler', icon: AcademicCapIcon },
+  
   { name: 'Program', to: '/zamanlama', icon: ClockIcon },
 ];
 
@@ -56,8 +57,11 @@ const menuButtonStyle = {
   color: 'rgba(255, 255, 255, 0.8)',
 };
 
+
+
 export default function NavBar() {
   return (
+    
     <Disclosure as="nav" style={navStyle}>
       {({ open }) => (
         <>

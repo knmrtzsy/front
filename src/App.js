@@ -65,11 +65,12 @@ function App() {
           {/* Sayfa yönlendirmeleri */}
           <Route path="/siniflar" element={<SinifList />} />
           <Route path="/siniflar/:id/edit" element={<SinifEdit />} />
+		      <Route path="/dersler" element={<DersList />} />
+          <Route path="/dersler/:id/edit" element={<DersEdit />} />
           <Route path="/ogretmenler" element={<OgretmenList />} />
           <Route path="/ogretmenler/yeni" element={<OgretmenEdit />} />
           <Route path="/ogretmenler/:id" element={<OgretmenEdit />} />
-          <Route path="/dersler" element={<DersList />} />
-          <Route path="/dersler/:id/edit" element={<DersEdit />} />
+          
           <Route path="/zamanlama" element={<Zamanlama />} />
         </Routes>
       </main>

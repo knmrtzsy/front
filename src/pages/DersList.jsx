@@ -65,12 +65,14 @@ export default function DersList() {
     setIsDeleteModalOpen(true);
   };
 
+  //! burası gibi update yazılacak
   const confirmDelete = async () => {
     if (!selectedDersId) return;
     
     setDeleteLoading(selectedDersId);
     try {
       await api.delete(`/dersler/${selectedDersId}`);
+      
       setDersler(prev => prev.filter(d => d.id !== selectedDersId));
       toast.success('Ders başarıyla silindi');
     } catch (err) {
@@ -81,6 +83,31 @@ export default function DersList() {
       setSelectedDersId(null);
     }
   };
+
+    const confirmUpdate = async () => {
+    if (!selectedDersId) return;
+    
+    setDeleteLoading(selectedDersId);
+    try {
+
+    let json={
+      id:'seçtiğin dersin id si olacak',
+      name:'inputtan dolacak veri koyulacak',
+    }
+    
+      await api.put(`/dersler/update`,json);
+      setDersler(prev => prev.filter(d => d.id !== selectedDersId));
+      toast.success('Ders başarıyla silindi');
+    } catch (err) {
+      console.error("Ders silinirken hata:", err);
+      toast.error('Ders silinirken hata oluştu.');
+    } finally {
+      setDeleteLoading(null);
+      setSelectedDersId(null);
+    }
+  };
+
+  
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
