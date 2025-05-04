@@ -1,92 +1,80 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import api from '../api';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate, Navigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import api from "../api";
+import PageHeader from "../components/ui/PageHeader";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 
-export default function DersEdit() {
-  const { id } = useParams();
-  const [assigned, setAssigned] = useState([]);
-  const [ogretmenList, setOgretmenList] = useState([]);
-  const [seciliOgretmen, setSeciliOgretmen] = useState('');
+export default function DersUpdate() {
+  const [newName, setNewName] = useState('');
+  const selectedDersId = useParams().id;
+  const [deleteLoading, setDeleteLoading] = useState('');
+  const navigate = useNavigate();
+  const confirmUpdate = async () => {
 
-  const fetchData = async () => {
+    if (!selectedDersId) return;
+    
+    setDeleteLoading(selectedDersId);
     try {
-      const [{ data: allO }, { data: sub }] = await Promise.all([
-        api.get('/ogretmenler'),
-        api.get(`/atamalar/subject-teacher?subject_id=${id}`)
-      ]);
-      setOgretmenList(allO);
-      setAssigned(sub);
-    } catch (error) {
-      console.error("Veri alınırken hata oluştu:", error);
-      alert("Öğretmenler veya atamalar yüklenirken bir hata oluştu.");
+    let json={
+      id:parseInt(selectedDersId),
+      name: newName,
+    }
+      await api.put(`/dersler/update`,json);
+      toast.success('Ders başarıyla güncellendi.');
+      navigate('/dersler');
+    } catch (err) {
+      console.error("Ders güncellenirken hata.:", err);
+      toast.error('Ders güncellenirken hata oluştu.');
     }
   };
 
-  useEffect(() => { fetchData(); }, [id]);
-
-  const ekle = async () => {
-    if (!seciliOgretmen) return alert("Lütfen bir öğretmen seçin.");
-    try {
-      await api.post('/atamalar/teacher-subject', {
-        teacher_id: seciliOgretmen,
-        subject_id: id
-      });
-      fetchData();
-    } catch (error) {
-      console.error("Öğretmen eklenirken hata:", error);
-      alert("Öğretmen eklenirken bir hata oluştu.");
-    }
-  };
-
-  const cikar = async (teacher_id) => {
-    try {
-      await api.delete('/atamalar/teacher-subject', {
-        data: { teacher_id, subject_id: id }
-      });
-      fetchData();
-    } catch (error) {
-      console.error("Öğretmen çıkarılırken hata:", error);
-      alert("Öğretmen çıkarılırken bir hata oluştu.");
-    }
-  };
-
+  
   return (
-    <div>
-      <h2>Ders Düzenle</h2>
+    <div className="flex items-center gap-4">
+      {/* Yeni ders adı için textbox */}
+      <Input
+        label="Yeni Ders Adı"
+        placeholder="Dersin yeni adını girin"
+        value={newName}
+        onChange={e => setNewName(e.target.value)}
+      />
 
-      <select
-        className="form-select mb-2"
-        value={seciliOgretmen}
-        onChange={e => setSeciliOgretmen(e.target.value)}
+      {/* Onaylama butonu */}
+      <Button
+        onClick={confirmUpdate}
+        disabled={!newName.trim()}
+        isLoading={false /* veya deleteLoading === selectedDersId */}
       >
-        <option value="">Öğretmen seç</option>
-        {ogretmenList.map(o => (
-          <option key={o.id} value={o.id}>{o.name}</option>
-        ))}
-      </select>
-      <button
-        className="btn btn-primary mb-3"
-        onClick={ekle}
-        disabled={!seciliOgretmen}
-      >
-        Ekle
-      </button>
-
-      <ul className="list-group">
-        {assigned.length > 0 ? assigned.map(o => (
-          <li key={o.teacher_id} className="list-group-item d-flex justify-content-between">
-            {o.name}
-            <button
-              className="btn btn-danger btn-sm"
-              onClick={() => cikar(o.teacher_id)}
-            >
-              Çıkar
-            </button>
-          </li>
-        )) : (
-          <li className="list-group-item">Henüz atanmış öğretmen yok.</li>
-        )}
-      </ul>
+        Güncelle
+      </Button>
     </div>
   );
+  
 }
+/*  const confirmUpdate = async () => {
+    if (!selectedDersId) return;
+    
+    setDeleteLoading(selectedDersId);
+    try {
+
+    let json={
+      id:'seçtiğin dersin id si olacak',
+      name:'inputtan dolacak veri koyulacak',
+    }
+    
+      await api.put(`/dersler/update`,json);
+      setDersler(prev => prev.filter(d => d.id !== selectedDersId));
+      toast.success('Ders başarıyla güncellendi.');
+    } catch (err) {
+      console.error("Ders güncellenirken hata.:", err);
+      toast.error('Ders güncellenirken hata oluştu.');
+    } finally {
+      setDeleteLoading(null);
+      setSelectedDersId(null);
+    }
+  };
+ */

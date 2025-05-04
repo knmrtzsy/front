@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import {PlusIcon,DocumentArrowDownIcon,TrashIcon} from "@heroicons/react/24/outline";
+import {
+  PlusIcon,
+  DocumentArrowDownIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
 import html2pdf from "html2pdf.js";
 import api from "../api";
 import Card from "../components/ui/Card";
@@ -11,198 +16,263 @@ import PageHeader from "../components/ui/PageHeader";
 import ConfirmModal from "../components/ui/ConfirmModal";
 
 export default function Zamanlama() {
-  const [entries, setEntries] = useState([]);
+  const { classId } = useParams();
+  const navigate = useNavigate();
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [entries, setEntries] = useState([]);
+  const [pendingEntries, setPendingEntries] = useState([]);
+  const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedEntryId, setSelectedEntryId] = useState(null);
+  const [delLoading, setDelLoading] = useState(null);
+  const [isDelModalOpen, setIsDelModalOpen] = useState(false);
+  const [selEntryId, setSelEntryId] = useState(null);
+  const [deletedEntries, setDeletedEntries] = useState([]);
   const tableRef = useRef(null);
+
   const [form, setForm] = useState({
-    class_id: "",
-    teacher_id: "",
     subject_id: "",
+    teacher_id: "",
     day_of_week: "",
     slotStart: "",
     slotEnd: "",
   });
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [classesRes, teachersRes, subjectsRes, entriesRes] =
-          await Promise.all([
-            api.get("/siniflar"),
-            api.get("/ogretmenler"),
-            api.get("/dersler"),
-            api.get("/atamalar/timetables"),
-          ]);
-        setClasses(classesRes.data);
-        setTeachers(teachersRes.data);
-        setSubjects(subjectsRes.data);
-        setEntries(entriesRes.data);
-      } catch (error) {
-        console.error("Veri yüklenirken hata:", error);
+    Promise.all([
+      api.get("/siniflar"),
+      api.get("/ogretmenler"),
+      api.get("/dersler"),
+      api.get("/atamalar/timetables"),
+    ])
+      .then(([cls, tch, subj, ent]) => {
+        setClasses(cls.data);
+        setTeachers(tch.data);
+        setSubjects(subj.data);
+        setEntries(ent.data);
+      })
+      .catch((err) => {
+        console.error(err);
         toast.error("Veri yüklenirken hata oluştu");
-      }
-    };
-    fetchData();
+      });
   }, []);
 
-  const ekle = async () => {
-    const {
-      class_id,
-      teacher_id,
-      subject_id,
-      day_of_week,
-      slotStart,
-      slotEnd,
-    } = form;
-    if (
-      !class_id ||
-      !teacher_id ||
-      !subject_id ||
-      !day_of_week ||
-      !slotStart ||
-      !slotEnd
-    ) {
-      toast.error("Lütfen tüm alanları doldurun.");
-      return;
-    }
-    const [sh, sm] = slotStart.split(":").map(Number);
-    const [eh, em] = slotEnd.split(":").map(Number);
-    const start = new Date();
-    start.setHours(sh);
-    start.setMinutes(sm);
-    const end = new Date();
-    end.setHours(eh);
-    end.setMinutes(em);
-    if (end - start < 60000) {
-      toast.error("Ders bitiş, başlangıçtan küçük olamaz.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await api.post("/atamalar/timetable", {
-        class_id,
-        teacher_id,
-        subject_id,
-        day_of_week,
-        slot: `${slotStart}-${slotEnd}`,
-      });
-      const { data } = await api.get("/atamalar/timetables");
-      setEntries(data);
-      setForm({
-        class_id: "",
-        teacher_id: "",
-        subject_id: "",
-        day_of_week: "",
-        slotStart: "",
-        slotEnd: "",
-      });
-      toast.success("Zamanlama başarıyla eklendi.");
-    } catch (error) {
-      console.error(error);
-      if (error.response?.status === 409)
-        toast.error("Bu zaman diliminde çakışma var!");
-      else toast.error("Zamanlama eklenirken bir hata oluştu.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = (id) => {
-    setSelectedEntryId(id);
-    setIsDeleteModalOpen(true);
-  };
-  const confirmDelete = async () => {
-    if (!selectedEntryId) return;
-    setDeleteLoading(selectedEntryId);
-    try {
-      await api.delete(`/atamalar/timetable/${selectedEntryId}`);
-      setEntries((prev) => prev.filter((e) => e.id !== selectedEntryId));
-      toast.success("Ders programdan kaldırıldı.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Silme işlemi sırasında bir hata oluştu.");
-    } finally {
-      setDeleteLoading(null);
-      setSelectedEntryId(null);
-      setIsDeleteModalOpen(false);
-    }
-  };
-
-  const exportToPdf = () => {
-    const element = tableRef.current;
-    const opt = {
-      margin: 1,
-      filename: "ders-programi.pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
     };
-    toast.promise(html2pdf().set(opt).from(element).save(), {
-      loading: "PDF hazırlanıyor...",
-      success: "PDF başarıyla indirildi",
-      error: "PDF oluşturulurken hata oluştu",
-    });
-  };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
-  const dayOptions = [
-    { id: "Pazartesi", name: "Pazartesi" },
-    { id: "Salı", name: "Salı" },
-    { id: "Çarşamba", name: "Çarşamba" },
-    { id: "Perşembe", name: "Perşembe" },
-    { id: "Cuma", name: "Cuma" },
+  const cid = parseInt(classId, 10);
+  const currentClass = classes.find((c) => c.id === cid);
+  if (!currentClass) {
+    navigate("/program");
+    return null;
+  }
+
+  const allEntries = [
+    ...entries.filter((e) => e.class_id === cid),
+    ...pendingEntries,
   ];
-  const organizedEntries = entries.reduce((acc, entry) => {
-    if (!acc[entry.day_of_week]) acc[entry.day_of_week] = {};
-    acc[entry.day_of_week][entry.slot] = entry;
+  const organized = allEntries.reduce((acc, e) => {
+    acc[e.day_of_week] = acc[e.day_of_week] || {};
+    acc[e.day_of_week][e.slot] = e;
     return acc;
   }, {});
-  const timeSlots = [...new Set(entries.map((e) => e.slot))].sort();
+  const timeSlots = [...new Set(allEntries.map((e) => e.slot))].sort();
+  const dayOptions = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"].map(
+    (d) => ({ id: d, name: d })
+  );
+
+  
+  const ekle = () => {
+    const { subject_id, teacher_id, day_of_week, slotStart, slotEnd } = form;
+    if (!subject_id || !teacher_id || !day_of_week || !slotStart || !slotEnd) {
+      toast.error("Tüm alanları doldurun");
+      return;
+    }
+  
+    const newSlot = `${slotStart}-${slotEnd}`;
+  
+    const parseSlot = (slot) => {
+      const [start, end] = slot.split("-").map((s) => {
+        const [h, m] = s.split(":").map(Number);
+        return h * 60 + m;
+      });
+      return { start, end };
+    };
+  
+    const { start: newStart, end: newEnd } = parseSlot(newSlot);
+  
+    const sinifCakisiyor = entries.some((e) => {
+      if (e.class_id !== cid || e.day_of_week !== day_of_week) return false;
+      const { start: s, end: e_ } = parseSlot(e.slot);
+      return newStart < e_ && newEnd > s;
+    });
+  
+    if (sinifCakisiyor) {
+      toast.error("Bu sınıfın aynı zaman aralığında başka dersi var.");
+      return;
+    }
+  
+    const ogretmenCakisiyor = entries.some((e) => {
+      if (e.teacher_id !== teacher_id || e.day_of_week !== day_of_week) return false;
+      const { start: s, end: e_ } = parseSlot(e.slot);
+      return newStart < e_ && newEnd > s;
+    });
+  
+    if (ogretmenCakisiyor) {
+      toast.error("Bu öğretmenin aynı zaman aralığında başka dersi var.");
+      return;
+    }
+  
+    const newEntry = {
+      id: `temp-${Date.now()}`,
+      class_id: cid,
+      subject_id,
+      teacher_id,
+      day_of_week,
+      slot: newSlot,
+    };
+  
+    setEntries((prev) => [...prev, newEntry]);
+    setPendingEntries((prev) => [...prev, newEntry]);
+    setForm({ subject_id: "", teacher_id: "", day_of_week: "", slotStart: "", slotEnd: "" });
+    setIsDirty(true);
+  };
+  
+
+  const handleDelete = (id) => {
+    setSelEntryId(id);
+    setIsDelModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (selEntryId?.toString().startsWith("temp-")) {
+      setPendingEntries((prev) => prev.filter((e) => e.id !== selEntryId));
+    } else {
+      const silinen = entries.find((e) => e.id === selEntryId);
+      setEntries((prev) => prev.filter((e) => e.id !== selEntryId));
+      setDeletedEntries((prev) => [...prev, silinen]);
+    }
+    setIsDirty(true);
+    setIsDelModalOpen(false);
+  };
+
+  const handleSave = async () => {
+    try {
+      for (const entry of pendingEntries) {
+        await api.post("/atamalar/timetable", {
+          class_id: entry.class_id,
+          subject_id: entry.subject_id,
+          teacher_id: entry.teacher_id,
+          day_of_week: entry.day_of_week,
+          slot: entry.slot,
+        });
+      }
+      for (const entry of deletedEntries) {
+        await api.delete(`/atamalar/timetable/${entry.id}`);
+      }
+      const { data } = await api.get("/atamalar/timetables");
+      setEntries(data);
+      setPendingEntries([]);
+      setDeletedEntries([]);
+      setIsDirty(false);
+      toast.success("Değişiklikler kaydedildi");
+    } catch (err) {
+      console.error(err);
+      toast.error("Kaydederken hata");
+    }
+  };
+
+  const handleReset = () => {
+    if (window.confirm("Sınıfın içeriğini sıfırlamak istiyor musunuz?")) {
+      const silinecekler = entries.filter((e) => e.class_id === cid);
+      setPendingEntries([]);
+      setDeletedEntries((prev) => [...prev, ...silinecekler]);
+      setEntries((prev) => prev.filter((e) => e.class_id !== cid));
+      setIsDirty(true);
+    }
+  };
+  
+  
+
+  const exportToPdf = () => {
+    html2pdf()
+      .set({
+        margin: 1,
+        filename: `${currentClass.name}-program.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: "in", format: "a4", orientation: "landscape" },
+      })
+      .from(tableRef.current)
+      .save();
+  };
+
+  const handleBack = () => {
+    if (
+      isDirty &&
+      !window.confirm(
+        "Değişiklikler kaydedilmedi. Çıkmak istediğinize emin misiniz?"
+      )
+    )
+      return;
+    navigate("/program");
+  };
 
   return (
     <div>
       <PageHeader
-        title="Ders Zamanlaması"
-        subtitle="Sınıf, öğretmen ve ders için haftalık zaman çizelgesi oluşturun."
+        title={`Zamanlama: ${currentClass.name}`}
+        subtitle="Ders, öğretmen, gün ve saat seçin"
         actions={
-          <Button onClick={exportToPdf} variant="secondary">
-            <DocumentArrowDownIcon className="w-5 h-5 mr-1" />
-            PDF İndir
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={exportToPdf} variant="secondary">
+              <DocumentArrowDownIcon className="w-5 h-5 mr-1" /> PDF
+            </Button>
+            <Button onClick={handleSave} variant="primary">
+              Kaydet
+            </Button>
+          </div>
         }
       />
+      <div className="mt-4">
+        <Button variant="secondary" onClick={handleBack}>
+          Sınıf Seçimine Dön
+        </Button>
+      </div>
       <Card className="mb-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 items-end">
-          <Select
-            label="Sınıf"
-            id="class_id"
-            options={classes}
-            value={form.class_id}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, class_id: e.target.value }))
-            }
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-6 gap-4 items-end">
           <Select
             label="Ders"
             id="subject_id"
             options={subjects}
             value={form.subject_id}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, subject_id: e.target.value }))
+              setForm((p) => ({
+                ...p,
+                subject_id: e.target.value,
+                teacher_id: "",
+              }))
             }
           />
           <Select
             label="Öğretmen"
             id="teacher_id"
-            options={teachers}
+            disabled={!form.subject_id}
+            options={teachers.filter((t) =>
+              t.subject_ids.includes(+form.subject_id)
+            )}
             value={form.teacher_id}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, teacher_id: e.target.value }))
+              setForm((p) => ({ ...p, teacher_id: e.target.value }))
             }
           />
           <Select
@@ -211,70 +281,41 @@ export default function Zamanlama() {
             options={dayOptions}
             value={form.day_of_week}
             onChange={(e) =>
-              setForm((prev) => ({ ...prev, day_of_week: e.target.value }))
+              setForm((p) => ({ ...p, day_of_week: e.target.value }))
             }
           />
-          <div className="flex items-end space-x-2">
-            <Input
-              type="time"
-              label="Ders Başlangıç"
-              id="slotStart"
-              placeholder="Örn: 09:00"
-              value={form.slotStart}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  slotStart: e.target.value,
-                  slotEnd: "",
-                }))
-              }
-            />
-            <span className="select-none">–</span>
-            <Input
-              type="time"
-              label="Ders Bitiş"
-              id="slotEnd"
-              placeholder="Örn: 10:30"
-              value={form.slotEnd}
-              min={(() => {
-                if (!form.slotStart) return "";
-                const [h, m] = form.slotStart.split(":").map(Number);
-                const date = new Date();
-                date.setHours(h);
-                date.setMinutes(m + 1);
-                const hh = String(date.getHours()).padStart(2, "0");
-                const mm = String(date.getMinutes()).padStart(2, "0");
-                return `${hh}:${mm}`;
-              })()}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (form.slotStart) {
-                  const [sh, sm] = form.slotStart.split(":").map(Number);
-                  const [eh, em] = value.split(":").map(Number);
-                  const start = new Date();
-                  start.setHours(sh);
-                  start.setMinutes(sm);
-                  const end = new Date();
-                  end.setHours(eh);
-                  end.setMinutes(em);
-                  if (end - start < 60000) {
-                    toast.error(
-                      "Ders bitiş, başlangıçtan en az bir dakika sonra olmalı."
-                    );
-                    return;
-                  }
-                }
-                setForm((prev) => ({ ...prev, slotEnd: value }));
-              }}
-            />
-            <Button
-              onClick={ekle}
-              isLoading={loading}
-              disabled={!form.slotStart || !form.slotEnd}
-              className="ml-4"
-            >
-              <PlusIcon className="w-5 h-5 mr-1" />
-              Ekle
+          <Input
+  type="time"
+  label="Başlangıç"
+  value={form.slotStart}
+  onChange={(e) => {
+    const newStart = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      slotStart: newStart,
+      slotEnd:
+        prev.slotEnd && prev.slotEnd <= newStart ? "" : prev.slotEnd,
+    }));
+  }}
+/>
+
+<Input
+  type="time"
+  label="Bitiş"
+  min={form.slotStart || undefined}
+  value={form.slotEnd}
+  onChange={(e) => {
+    const newEnd = e.target.value;
+    if (form.slotStart && newEnd <= form.slotStart) {
+      toast.error("Ders bitiş saati başlangıçtan büyük olmalı.");
+      return;
+    }
+    setForm((prev) => ({ ...prev, slotEnd: newEnd }));
+  }}
+/>
+          <div className="lg:col-span-1">
+            <Button onClick={ekle} isLoading={loading} className="w-full">
+              <PlusIcon className="w-5 h-5 mr-1" /> Ekle
             </Button>
           </div>
         </div>
@@ -284,15 +325,10 @@ export default function Zamanlama() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr>
-                <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Saat
-                </th>
-                {dayOptions.map((day) => (
-                  <th
-                    key={day.id}
-                    className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    {day.name}
+                <th className="px-6 py-3 bg-gray-50">Saat</th>
+                {dayOptions.map((d) => (
+                  <th key={d.id} className="px-6 py-3 bg-gray-50">
+                    {d.name}
                   </th>
                 ))}
               </tr>
@@ -300,36 +336,35 @@ export default function Zamanlama() {
             <tbody className="bg-white divide-y divide-gray-200">
               {timeSlots.map((slot) => (
                 <tr key={slot}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-6 py-4 font-medium text-gray-900">
                     {slot}
                   </td>
-                  {dayOptions.map((day) => {
-                    const entry = organizedEntries[day.id]?.[slot];
+                  {dayOptions.map((d) => {
+                    const e = organized[d.id]?.[slot];
                     return (
                       <td
-                        key={day.id}
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                        key={d.id}
+                        className="px-6 py-4 text-sm text-gray-500"
                       >
-                        {entry ? (
+                        {e ? (
                           <div className="space-y-1">
-                            <div className="flex justify-between items-start">
-                              <div className="font-medium text-gray-900">
-                                {entry.class}
-                              </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium">
+                                {currentClass.name}
+                              </span>
                               <Button
                                 variant="danger"
                                 size="sm"
-                                className="ml-2 -mt-1"
-                                onClick={() => handleDelete(entry.id)}
-                                isLoading={deleteLoading === entry.id}
+                                onClick={() => handleDelete(e.id)}
+                                isLoading={delLoading === e.id}
                               >
                                 <TrashIcon className="w-4 h-4" />
                               </Button>
                             </div>
                             <div className="text-blue-600 font-medium">
-                              {entry.subject}
+                              {e.subject}
                             </div>
-                            <div className="text-gray-600">{entry.teacher}</div>
+                            <div className="text-gray-600">{e.teacher}</div>
                           </div>
                         ) : (
                           "---"
@@ -343,12 +378,17 @@ export default function Zamanlama() {
           </table>
         </div>
       </Card>
+      <div className="flex justify-end mt-4">
+        <Button onClick={handleReset} variant="destructive">
+          Sıfırla
+        </Button>
+      </div>
       <ConfirmModal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        isOpen={isDelModalOpen}
+        onClose={() => setIsDelModalOpen(false)}
         onConfirm={confirmDelete}
-        title="Dersi Kaldır"
-        message="Bu dersi programdan kaldırmak istediğinizden emin misiniz?"
+        title="Kayıt Sil"
+        message="Bu kaydı silmek istediğinize emin misiniz?"
       />
     </div>
   );

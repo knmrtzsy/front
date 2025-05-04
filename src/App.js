@@ -8,8 +8,11 @@ import OgretmenList from "./pages/OgretmenList";
 import OgretmenEdit from "./pages/OgretmenEdit";
 import DersList from "./pages/DersList";
 import DersEdit from "./pages/DersEdit";
+import ProgramMenu from "./pages/ProgramMenu";
+import ProgramSinifList from "./pages/ProgramSinifList";
+import OgretmenDersProgrami from "./pages/OgretmenDersProgrami";
+import OgretmenProgramList from "./pages/OgretmenProgramList";
 import Zamanlama from "./pages/Zamanlama";
-
 function Footer() {
   return (
     <footer
@@ -65,13 +68,17 @@ function App() {
           {/* Sayfa yönlendirmeleri */}
           <Route path="/siniflar" element={<SinifList />} />
           <Route path="/siniflar/:id/edit" element={<SinifEdit />} />
-		      <Route path="/dersler" element={<DersList />} />
+          <Route path="/dersler" element={<DersList />} />
           <Route path="/dersler/:id/edit" element={<DersEdit />} />
           <Route path="/ogretmenler" element={<OgretmenList />} />
           <Route path="/ogretmenler/yeni" element={<OgretmenEdit />} />
           <Route path="/ogretmenler/:id" element={<OgretmenEdit />} />
-          
-          <Route path="/zamanlama" element={<Zamanlama />} />
+
+          <Route path="/program" element={<ProgramMenu />} />
+          <Route path="/program/sinif-secimi" element={<ProgramSinifList />} />
+          <Route path="/program/:classId" element={<Zamanlama />} />
+          <Route path="/program/ogretmen-secimi" element={<OgretmenProgramList />} />
+          <Route path="/program/ogretmen/:id" element={<OgretmenDersProgrami />} />
         </Routes>
       </main>
       <Footer />

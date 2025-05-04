@@ -7,8 +7,7 @@ const navigation = [
   { name: 'Sınıflar', to: '/siniflar', icon: UserGroupIcon },
   { name: 'Dersler', to: '/dersler', icon: BookOpenIcon },
   { name: 'Öğretmenler', to: '/ogretmenler', icon: AcademicCapIcon },
-  
-  { name: 'Program', to: '/zamanlama', icon: ClockIcon },
+  { name: 'Program', to: '/Program', icon: ClockIcon },
 ];
 
 const navStyle = {
@@ -57,11 +56,8 @@ const menuButtonStyle = {
   color: 'rgba(255, 255, 255, 0.8)',
 };
 
-
-
 export default function NavBar() {
   return (
-    
     <Disclosure as="nav" style={navStyle}>
       {({ open }) => (
         <>

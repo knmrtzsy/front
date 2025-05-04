@@ -20,8 +20,13 @@ export default function SinifList() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedSinifId, setSelectedSinifId] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editSinifId, setEditSinifId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+const fetchData = async () => {
       try {
         const response = await api.get('/siniflar');
         setSiniflar(response.data);
@@ -31,6 +36,9 @@ export default function SinifList() {
         toast.error('Sınıflar yüklenirken hata oluştu.');
       }
     };
+
+  useEffect(() => {
+    
     
     fetchData();
   }, []);
@@ -84,6 +92,26 @@ export default function SinifList() {
     }
   };
 
+  const confirmUpdate = async () => {
+    if (!editDersId || !editName.trim()) return;
+    setEditLoading(true);
+    try {
+      const payload = { id: editDersId, name: editName.trim() };
+      const { data: updated } = await api.put("/dersler/update", payload);
+      setDersler(prev => prev.map(d => d.id === updated.id ? updated : d));
+      toast.success("Ders başarıyla güncellendi");
+      setIsEditModalOpen(false);
+      setEditDersId(null);
+      setEditName('');
+    } catch (err) {
+      toast.error("Güncelleme sırasında hata oluştu");
+      console.error(err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+  
+
   return (
     <div>
       <PageHeader 
@@ -129,39 +157,40 @@ export default function SinifList() {
             <TableHeader className="text-right">İşlemler</TableHeader>
           </TableHead>
           <TableBody>
-            {siniflar.length > 0 ? (
-              siniflar.map(sinif => (
-                <TableRow key={sinif.id}>
-                  <TableCell className="font-medium">{sinif.name}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Link to={`/siniflar/${sinif.id}/edit`}>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="inline-flex items-center"
-                        >
-                          <PencilIcon className="w-4 h-4 mr-1" />
-                          Düzenle
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        className="inline-flex items-center"
-                        onClick={() => handleDelete(sinif.id)}
-                        isLoading={deleteLoading === sinif.id}
-                      >
-                        <TrashIcon className="w-4 h-4 mr-1" />
-                        Sil
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <EmptyState colSpan={2} message="Henüz hiç sınıf eklenmemiş." />
-            )}
+            {siniflar.map(sinif => (
+              <TableRow key={sinif.id}>
+                <TableCell className="font-medium">{sinif.name}</TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-2">
+                  <Button
+  variant="secondary"
+  size="sm"
+  className="inline-flex items-center"
+  onClick={() => {
+    setEditDersId(ders.id);
+    setEditName(ders.name);
+    setIsEditModalOpen(true);
+  }}
+>
+  <PencilSquareIcon className="w-4 h-4 mr-1" />
+  Düzenle
+</Button>
+
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedSinifId(sinif.id);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      isLoading={deleteLoading === sinif.id}
+                    >
+                      <TrashIcon className="w-4 h-4 mr-1" /> Sil
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Card>
@@ -173,6 +202,29 @@ export default function SinifList() {
         title="Sınıfı Sil"
         message="Bu sınıfı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz."
       />
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Sınıfı Düzenle</h3>
+            <Input
+              label="Sınıf Adı"
+              placeholder="Yeni sınıf adını girin"
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+            />
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setIsEditModalOpen(false)}>
+                İptal
+              </Button>
+              <Button onClick={confirmUpdate} isLoading={editLoading}>
+                Güncelle
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
+  
 }
